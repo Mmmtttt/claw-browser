@@ -313,6 +313,41 @@ except Exception as e:
 - **Gateway 未运行**：运行 `openclaw gateway --port 18789`
 - **权限问题**：确保 Chrome 扩展有正确的权限
 
+## 项目原理
+
+### 工作原理
+
+OpenClaw Browser 工具的 Python 客户端通过以下流程工作：
+
+1. **命令行调用**：客户端通过 `subprocess` 模块调用 `openclaw` 命令
+2. **Gateway 通信**：`openclaw` 命令与 OpenClaw Gateway 进行通信
+3. **浏览器控制**：Gateway 通过 Chrome 扩展或 CDP 协议控制浏览器
+4. **结果返回**：命令执行结果以 JSON 格式返回给客户端
+
+### 核心组件
+
+- **OpenClawBrowserClient**：核心客户端类，封装了所有浏览器操作的 API
+- **BrowserAutomation**：高级自动化类，提供更便捷的操作方法
+- **命令行工具**：提供命令行接口，方便快速操作
+
+### 通信流程
+
+1. **客户端** → **openclaw 命令**：通过 subprocess 执行命令
+2. **openclaw 命令** → **Gateway**：通过 WebSocket 或 HTTP 通信
+3. **Gateway** → **浏览器**：通过 Chrome 扩展或 CDP 协议
+4. **浏览器** → **Gateway**：返回操作结果
+5. **Gateway** → **openclaw 命令**：返回 JSON 格式结果
+6. **openclaw 命令** → **客户端**：解析并返回结果
+
+### 技术栈
+
+- **Python 3.7+**：核心编程语言
+- **asyncio**：异步编程支持
+- **subprocess**：执行系统命令
+- **JSON**：数据交换格式
+- **OpenClaw Gateway**：核心服务
+- **Chrome 浏览器**：目标浏览器
+
 ## 许可证
 
 MIT License

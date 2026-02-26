@@ -247,8 +247,7 @@ class OpenClawBrowserClient:
             # resize 需要宽度和高度
             cmd = f"openclaw browser resize {value} --json"
         elif action == "wait" and value:
-            # wait 需要时间（毫秒）
-            cmd = f"openclaw browser wait --time {value} --json"
+            cmd = f"openclaw browser wait {value} --json"
         else:
             raise ValueError(f"不支持的操作类型: {action}")
         
@@ -258,11 +257,6 @@ class OpenClawBrowserClient:
         elif profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
-        
-        if wait_ms:
-            cmd += f" --wait {wait_ms}"
-        
-        print(f"[DEBUG] browser_act: {cmd}")
         output = await self._run_command(cmd)
         result = json.loads(output)
         print(f"[DEBUG] browser_act result keys: {list(result.keys())}")
@@ -384,65 +378,3 @@ class OpenClawBrowserClient:
         await self.close()
 
 
-class BrowserAutomation:
-    """浏览器自动化高级封装"""
-
-    def __init__(self, client: OpenClawBrowserClient):
-        self.client = client
-
-    async def open_and_snapshot(self, url: str) -> BrowserSnapshot:
-        """打开网页并获取快照"""
-        await self.client.browser_open(url)
-        await asyncio.sleep(2)
-        return await self.client.browser_snapshot(mode="ai")
-
-    async def find_and_click(self, search_text: str, max_attempts: int = 3) -> bool:
-        """查找包含文本的元素并点击"""
-        for attempt in range(max_attempts):
-            snapshot = await self.client.browser_snapshot(mode="ai")
-            
-            for ref, element in snapshot.refs.items():
-                if isinstance(ref, int) and search_text.lower() in str(element).lower():
-                    await self.client.browser_act(ref, "click")
-                    await asyncio.sleep(1)
-                    return True
-            
-            await asyncio.sleep(1)
-        
-        return False
-
-    async def type_text(self, ref: int, text: str, clear_first: bool = True) -> None:
-        """在元素中输入文本"""
-        if clear_first:
-            await self.client.browser_act(ref, "click")
-            await asyncio.sleep(0.5)
-            await self.client.browser_act(ref, "press", value="Control+A")
-            await asyncio.sleep(0.2)
-        
-        await self.client.browser_act(ref, "type", value=text)
-
-    async def wait_for_element(self, search_text: str, timeout: int = 10) -> bool:
-        """等待元素出现"""
-        for _ in range(timeout):
-            snapshot = await self.client.browser_snapshot(mode="ai")
-            
-            for ref, element in snapshot.refs.items():
-                if isinstance(ref, int) and search_text.lower() in str(element).lower():
-                    return True
-            
-            await asyncio.sleep(1)
-        
-        return False
-
-    async def take_screenshot_and_save(self, filename: str) -> None:
-        """截图并保存到文件"""
-        result = await self.client.browser_screenshot()
-        
-        if "data" in result:
-            image_data = result["data"]
-            if image_data.startswith("data:image"):
-                image_data = image_data.split(",")[1]
-            
-            image_bytes = base64.b64decode(image_data)
-            with open(filename, "wb") as f:
-                f.write(image_bytes)

@@ -3,6 +3,12 @@ OpenClaw Browser 工具 - 入门示例
 最简单的使用示例，帮助快速上手
 """
 import asyncio
+import sys
+from pathlib import Path
+
+# 添加父目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from openclaw_browser_client import OpenClawBrowserClient
 
 

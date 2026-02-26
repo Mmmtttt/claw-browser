@@ -1,5 +1,11 @@
 import asyncio
-from openclaw_browser_client import OpenClawBrowserClient, BrowserAutomation
+import sys
+from pathlib import Path
+
+# 添加父目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from openclaw_browser_client import OpenClawBrowserClient
 
 
 async def example_1_basic_usage():
@@ -45,8 +51,6 @@ async def example_2_google_search():
     print("=" * 60)
     
     async with OpenClawBrowserClient() as client:
-        automation = BrowserAutomation(client)
-        
         # 打开 Google
         print("\n1. 打开 Google...")
         await client.browser_open("https://www.google.com")
@@ -70,7 +74,8 @@ async def example_2_google_search():
         
         if search_ref:
             print("\n4. 输入搜索内容...")
-            await automation.type_text(search_ref, "OpenClaw AI assistant")
+            # 直接使用 client 的方法
+            await client.browser_act(search_ref, "type", value="OpenClaw AI assistant")
             await asyncio.sleep(1)
             
             print("\n5. 按回车搜索...")
@@ -205,21 +210,40 @@ async def example_7_advanced_automation():
     print("=" * 60)
     
     async with OpenClawBrowserClient() as client:
-        automation = BrowserAutomation(client)
-        
         # 打开并快照
         print("\n1. 打开 GitHub 并获取快照...")
-        snapshot = await automation.open_and_snapshot("https://github.com")
+        await client.browser_open("https://github.com")
+        await asyncio.sleep(2)
+        snapshot = await client.browser_snapshot(mode="ai")
         print(f"快照内容:\n{snapshot.content[:600]}...")
         
         # 等待特定元素
         print("\n2. 等待搜索框出现...")
-        found = await automation.wait_for_element("search", timeout=5)
+        found = False
+        for _ in range(5):
+            snapshot = await client.browser_snapshot(mode="ai")
+            for ref, element in snapshot.refs.items():
+                if isinstance(ref, int) and "search" in str(element).lower():
+                    found = True
+                    break
+            if found:
+                break
+            await asyncio.sleep(1)
         print(f"搜索框{'已找到' if found else '未找到'}")
         
         # 查找并点击
         print("\n3. 查找并点击 'Sign in'...")
-        clicked = await automation.find_and_click("Sign in", max_attempts=2)
+        clicked = False
+        for _ in range(2):
+            snapshot = await client.browser_snapshot(mode="ai")
+            for ref, element in snapshot.refs.items():
+                if isinstance(ref, int) and "sign in" in str(element).lower():
+                    await client.browser_act(ref, "click")
+                    clicked = True
+                    break
+            if clicked:
+                break
+            await asyncio.sleep(1)
         print(f"{'成功点击' if clicked else '未找到或点击失败'}")
         
         await asyncio.sleep(2)
@@ -227,8 +251,16 @@ async def example_7_advanced_automation():
         # 截图保存
         print("\n4. 截图并保存...")
         try:
-            await automation.take_screenshot_and_save("screenshot.png")
-            print("截图已保存到 screenshot.png")
+            result = await client.browser_screenshot()
+            if "data" in result:
+                import base64
+                image_data = result["data"]
+                if image_data.startswith("data:image"):
+                    image_data = image_data.split(",")[1]
+                image_bytes = base64.b64decode(image_data)
+                with open("screenshot.png", "wb") as f:
+                    f.write(image_bytes)
+                print("截图已保存到 screenshot.png")
         except Exception as e:
             print(f"截图保存失败: {e}")
 

@@ -22,8 +22,8 @@ wheels/
 
 # Virtual Environment
 venv/
-env/
 ENV/
+env/
 
 # IDE
 .vscode/
@@ -32,22 +32,24 @@ ENV/
 *.swo
 *~
 
+# Logs
+logs/
+*.log
+
+# Test results
+test_results.json
+test_debug_results.json
+
+# Temporary files
+*.tmp
+*.bak
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Screenshots and images
-screenshot*.png
-*.png
-*.jpg
-*.jpeg
+# Snapshots
+snapshot_*.json
 
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
-
-# Config (optional - uncomment if you don't want to commit config)
-# openclaw.json
+# Screenshots
+test_screenshot.png

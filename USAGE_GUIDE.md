@@ -144,7 +144,7 @@ asyncio.run(search_example())
 ## 后续步骤
 
 - 尝试其他浏览器操作（如 `browser_act` 执行点击、输入等）
-- 探索 `BrowserAutomation` 类的高级功能
+- 探索 `browser_evaluate` 执行 JavaScript 代码
 - 查看 `example_usage.py` 中的更多示例
 
 ---

@@ -1,0 +1,11 @@
+{
+  "content": "- link \"Learn more\" [ref=e1]",
+  "refs": {
+    "e1": {
+      "role": "link",
+      "name": "Learn more"
+    }
+  },
+  "metadata": {},
+  "timestamp": "2026-02-27T02:03:17.193222"
+}

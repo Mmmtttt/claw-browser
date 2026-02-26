@@ -32,7 +32,7 @@ class OpenClawBrowserClient:
         """连接 - 占位符方法"""
         return self
 
-    async def _run_command(self, command: str) -> str:
+    async def _run_command(self, command: str, timeout: int = 30) -> str:
         """运行命令"""
         try:
             # 使用 shell=True 来确保在正确的环境中运行
@@ -41,11 +41,21 @@ class OpenClawBrowserClient:
                 shell=True,
                 capture_output=True,
                 text=True,
-                check=True
+                encoding='utf-8',
+                errors='replace',
+                check=True,
+                timeout=timeout  # 添加超时设置
             )
+            # 确保 stdout 不为空
+            if result.stdout is None:
+                return ""
             return result.stdout
         except subprocess.CalledProcessError as e:
-            raise Exception(f"命令执行失败: {e.stderr}")
+            # 尝试从 stderr 获取错误信息
+            error_msg = e.stderr if e.stderr else str(e)
+            raise Exception(f"命令执行失败: {error_msg}\n命令: {command}")
+        except subprocess.TimeoutExpired:
+            raise Exception(f"命令执行超时（{timeout}秒）: {command}")
 
     async def browser_status(self, profile: Optional[str] = None) -> Dict[str, Any]:
         """获取浏览器状态"""
@@ -58,11 +68,22 @@ class OpenClawBrowserClient:
 
     async def browser_start(self, profile: Optional[str] = None) -> Dict[str, Any]:
         """启动浏览器"""
+        # 先检查浏览器状态
+        try:
+            status = await self.browser_status(profile)
+            if status.get("status") == "running":
+                # 浏览器已经在运行，直接返回
+                return {"status": "success", "message": "Browser already running"}
+        except Exception as e:
+            # 状态检查失败，可能是浏览器未启动，继续尝试启动
+            pass
+        
+        # 启动浏览器
         cmd = f"openclaw browser start --json"
         if profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
-        output = await self._run_command(cmd)
+        output = await self._run_command(cmd, timeout=60)  # 启动浏览器可能需要更长时间
         return json.loads(output)
 
     async def browser_stop(self, profile: Optional[str] = None) -> Dict[str, Any]:
@@ -86,8 +107,10 @@ class OpenClawBrowserClient:
         tabs = []
         if "tabs" in result:
             for tab in result["tabs"]:
+                # 尝试多种可能的 ID 字段名称
+                tab_id = tab.get("id") or tab.get("targetId") or tab.get("tabId") or str(tab.get("index", ""))
                 tabs.append(BrowserTab(
-                    id=tab.get("id"),
+                    id=tab_id,
                     url=tab.get("url", ""),
                     title=tab.get("title", "")
                 ))
@@ -124,13 +147,17 @@ class OpenClawBrowserClient:
         return json.loads(output)
 
     async def browser_navigate(self, url: str, profile: Optional[str] = None) -> Dict[str, Any]:
-        """导航到 URL"""
+        """导航到指定 URL"""
         cmd = f"openclaw browser navigate {url} --json"
         if profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
+        
+        print(f"[DEBUG] browser_navigate: {cmd}")
         output = await self._run_command(cmd)
-        return json.loads(output)
+        result = json.loads(output)
+        print(f"[DEBUG] browser_navigate result: {result}")
+        return result
 
     async def browser_snapshot(self, mode: str = "ai", profile: Optional[str] = None, 
                                interactive: bool = False, compact: bool = False, 
@@ -154,26 +181,39 @@ class OpenClawBrowserClient:
             cmd += f" --depth {depth}"
         if selector:
             cmd += f" --selector '{selector}'"
-        if profile or self.profile:
+        # 始终使用 chrome profile
+        if not profile and not self.profile:
+            cmd += " --profile chrome"
+        elif profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
+        
+        print(f"[DEBUG] browser_snapshot: {cmd}")
         output = await self._run_command(cmd)
         result = json.loads(output)
+        print(f"[DEBUG] browser_snapshot result keys: {list(result.keys())}")
         
         return BrowserSnapshot(
-            content=result.get("content", ""),
+            content=result.get("snapshot", ""),
             refs=result.get("refs", {}),
             metadata=result.get("metadata", {})
         )
 
     async def browser_screenshot(self, profile: Optional[str] = None) -> Dict[str, Any]:
-        """截图"""
+        """获取截图"""
         cmd = "openclaw browser screenshot --json"
-        if profile or self.profile:
+        # 始终使用 chrome profile
+        if not profile and not self.profile:
+            cmd += " --profile chrome"
+        elif profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
+        
+        print(f"[DEBUG] browser_screenshot: {cmd}")
         output = await self._run_command(cmd)
-        return json.loads(output)
+        result = json.loads(output)
+        print(f"[DEBUG] browser_screenshot result keys: {list(result.keys())}")
+        return result
 
     async def browser_act(self, ref: int, action: str, value: Optional[str] = None,
                           profile: Optional[str] = None, wait_ms: Optional[int] = None) -> Dict[str, Any]:
@@ -186,26 +226,66 @@ class OpenClawBrowserClient:
             profile: 浏览器配置名称
             wait_ms: 等待毫秒数
         """
-        if value:
-            cmd = f"openclaw browser act {ref} {action} '{value}' --json"
+        # 构建命令
+        if action == "click":
+            cmd = f"openclaw browser click {ref} --json"
+        elif action == "type" and value:
+            cmd = f"openclaw browser type {ref} \"{value}\" --json"
+        elif action == "press" and value:
+            cmd = f"openclaw browser press {value} --json"
+        elif action == "hover":
+            cmd = f"openclaw browser hover {ref} --json"
+        elif action == "drag" and value:
+            # drag 需要两个 ref，格式: drag <from_ref> <to_ref>
+            cmd = f"openclaw browser drag {ref} {value} --json"
+        elif action == "select" and value:
+            # select 需要 ref 和选项
+            cmd = f"openclaw browser select {ref} {value} --json"
+        elif action == "fill" and value:
+            cmd = f"openclaw browser fill --fields '{value}' --json"
+        elif action == "resize" and value:
+            # resize 需要宽度和高度
+            cmd = f"openclaw browser resize {value} --json"
+        elif action == "wait" and value:
+            # wait 需要时间（毫秒）
+            cmd = f"openclaw browser wait --time {value} --json"
         else:
-            cmd = f"openclaw browser act {ref} {action} --json"
-        if wait_ms:
-            cmd += f" --wait {wait_ms}"
-        if profile or self.profile:
+            raise ValueError(f"不支持的操作类型: {action}")
+        
+        # 始终使用 chrome profile
+        if not profile and not self.profile:
+            cmd += " --profile chrome"
+        elif profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
+        
+        if wait_ms:
+            cmd += f" --wait {wait_ms}"
+        
+        print(f"[DEBUG] browser_act: {cmd}")
         output = await self._run_command(cmd)
-        return json.loads(output)
+        result = json.loads(output)
+        print(f"[DEBUG] browser_act result keys: {list(result.keys())}")
+        return result
 
     async def browser_evaluate(self, javascript: str, profile: Optional[str] = None) -> Dict[str, Any]:
         """执行 JavaScript"""
-        cmd = f"openclaw browser evaluate '{javascript}' --json"
-        if profile or self.profile:
+        # 使用 openclaw browser evaluate 命令
+        # 格式: openclaw browser evaluate --fn 'javascript' --json
+        cmd = f"openclaw browser evaluate --fn \"{javascript}\" --json"
+        # 始终使用 chrome profile
+        if not profile and not self.profile:
+            cmd += " --profile chrome"
+        elif profile or self.profile:
             p = profile or self.profile
             cmd += f" --profile {p}"
+        
+        print(f"[DEBUG] browser_evaluate: {cmd[:100]}...")
         output = await self._run_command(cmd)
-        return json.loads(output)
+        result = json.loads(output)
+        print(f"[DEBUG] browser_evaluate result keys: {list(result.keys())}")
+        
+        return result
 
     async def browser_console(self, profile: Optional[str] = None) -> Dict[str, Any]:
         """获取控制台日志"""
@@ -272,21 +352,21 @@ class OpenClawBrowserClient:
     async def browser_create_profile(self, name: str, cdp_url: Optional[str] = None) -> Dict[str, Any]:
         """创建新的浏览器配置"""
         if cdp_url:
-            cmd = f"openclaw browser create-profile {name} --cdp-url {cdp_url} --json"
+            cmd = f"openclaw browser create-profile --name {name} --cdp-url {cdp_url} --json"
         else:
-            cmd = f"openclaw browser create-profile {name} --json"
+            cmd = f"openclaw browser create-profile --name {name} --json"
         output = await self._run_command(cmd)
         return json.loads(output)
 
     async def browser_delete_profile(self, name: str) -> Dict[str, Any]:
         """删除浏览器配置"""
-        cmd = f"openclaw browser delete-profile {name} --json"
+        cmd = f"openclaw browser delete-profile --name {name} --json"
         output = await self._run_command(cmd)
         return json.loads(output)
 
     async def browser_reset_profile(self, name: str) -> Dict[str, Any]:
         """重置浏览器配置"""
-        cmd = f"openclaw browser reset-profile {name} --json"
+        cmd = f"openclaw browser reset-profile --name {name} --json"
         output = await self._run_command(cmd)
         return json.loads(output)
 

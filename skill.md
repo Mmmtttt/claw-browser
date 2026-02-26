@@ -2,20 +2,19 @@
 
 ## 概述
 
-本 Skill 提供了通过 Python 脚本控制 OpenClaw Browser 工具的完整能力。AI Agent 可以使用此 Skill 将浏览器自动化操作固化为可执行的 Python 脚本，实现复杂的网页交互、数据抓取和自动化任务。
+本 Skill 提供了通过 Python 脚本控制 OpenClaw Browser 工具的完整能力。AI Agent 可以使用此 Skill 将浏览器自动化操作固化为可执行的 Python 脚本，实现基本的浏览器控制、标签页管理和配置管理。
 
 ## 核心能力
 
 ### 1. 浏览器控制
 - 启动/停止浏览器
+- 获取浏览器状态
+- 浏览器配置管理
+
+### 2. 标签页管理
 - 打开/关闭标签页
 - 页面导航
-- 获取浏览器状态
-
-### 2. 页面交互
-- 获取页面快照（AI 模式、ARIA 模式等）
-- 执行 UI 操作（点击、输入、按键等）
-- 截图功能
+- 获取标签页列表
 
 ### 3. JavaScript 执行（重点）
 
@@ -98,7 +97,13 @@ exists = result.get("result", False)
 
 **修改页面样式**：
 ```python
-result = await client.browser_evaluate("document.body.style.backgroundColor = '#f0f0f0'")
+await client.browser_evaluate("document.body.style.backgroundColor = '#f0f0f0'")
+```
+
+**获取段落数量**：
+```python
+result = await client.browser_evaluate("document.querySelectorAll('p').length")
+p_count = result.get("result", 0)
 ```
 
 **获取页面语言**：
@@ -148,56 +153,67 @@ result = await client.browser_evaluate("document.body.style.backgroundColor = '#
 result = await client.browser_evaluate("document.body.style.backgroundColor = '#f0f0f0'")
 ```
 
-### 4. 配置管理
-- 列出所有配置
-- 创建新配置
-- 删除配置
-
-### 5. 自动化功能
-- 打开页面并获取快照
-- 查找并点击元素
-- 等待元素出现
-- 截图并保存
-
 ## 使用场景
 
-### 1. 网页数据抓取
+### 1. 浏览器控制
 ```python
 async with OpenClawBrowserClient() as client:
-    await client.browser_open("https://example.com")
-    snapshot = await client.browser_snapshot(mode="ai")
-    # 从快照中提取数据
+    # 检查浏览器状态
+    status = await client.browser_status()
+    print(f"状态: {status}")
+    
+    # 启动浏览器
+    await client.browser_start()
+    print("浏览器已启动")
 ```
 
-### 2. 表单自动填写
+### 2. 标签页管理
 ```python
 async with OpenClawBrowserClient() as client:
-    await client.browser_open("https://example.com/form")
-    snapshot = await client.browser_snapshot(mode="ai")
-    # 查找输入框并填写
-    for ref, element in snapshot.refs.items():
-        if element.get('role') == 'textbox':
-            await client.browser_act(ref, "type", value="test data")
+    # 打开网页
+    await client.browser_open("https://example.com")
+    
+    # 获取标签页列表
+    tabs = await client.browser_tabs()
+    for tab in tabs:
+        print(f"{tab.title} - {tab.url}")
+    
+    # 导航到新 URL
+    await client.browser_navigate("https://www.python.org")
+    
+    # 关闭标签页
+    if tabs and tabs[-1].id:
+        await client.browser_close(tabs[-1].id)
 ```
 
-### 3. 页面监控
+### 3. 配置管理
 ```python
 async with OpenClawBrowserClient() as client:
-    await client.browser_open("https://example.com")
-    while True:
-        snapshot = await client.browser_snapshot(mode="ai")
-        # 检查页面变化
-        await asyncio.sleep(10)
+    # 列出所有配置
+    profiles = await client.browser_profiles()
+    print(f"配置列表: {profiles}")
+    
+    # 创建新配置
+    result = await client.browser_create_profile("my-profile")
+    print(f"创建结果: {result}")
 ```
 
-### 4. 自动化测试
+### 4. JavaScript 数据提取
 ```python
 async with OpenClawBrowserClient() as client:
+    # 打开网页
     await client.browser_open("https://example.com")
-    # 执行测试步骤
-    await client.browser_act(ref, "click")
-    # 验证结果
+    await asyncio.sleep(2)
+    
+    # 获取页面标题
     result = await client.browser_evaluate("document.title")
+    title = result.get("result", "")
+    print(f"标题: {title}")
+    
+    # 获取所有链接
+    result = await client.browser_evaluate("document.querySelectorAll('a').length")
+    links_count = result.get("result", 0)
+    print(f"链接数量: {links_count}")
 ```
 
 ## 文件结构
@@ -213,9 +229,8 @@ claw-browser-python-client/
 ├── examples/               # 示例代码
 │   ├── example_usage.py    # 综合示例
 │   └── getting_started.py  # 快速开始
-├── tests/                  # 测试代码
-│   └── test_complete.py   # 完整测试套件
-└── logs/                   # 日志目录
+└── tests/                  # 测试代码
+    └── test_complete.py   # 完整测试套件
 ```
 
 ## 安装依赖
@@ -232,16 +247,19 @@ from openclaw_browser_client import OpenClawBrowserClient
 
 async def main():
     async with OpenClawBrowserClient() as client:
+        # 启动浏览器
+        await client.browser_start()
+        
         # 打开网页
         await client.browser_open("https://example.com")
         
-        # 获取页面快照
-        snapshot = await client.browser_snapshot(mode="ai")
-        print(f"页面标题: {snapshot.content}")
+        # 等待页面加载
+        await asyncio.sleep(2)
         
-        # 执行 JavaScript
-        result = await client.browser_evaluate("document.title")
-        print(f"标题: {result.get('result', '')}")
+        # 获取标签页列表
+        tabs = await client.browser_tabs()
+        for i, tab in enumerate(tabs, 1):
+            print(f"{i}. {tab.title} - {tab.url}")
 
 asyncio.run(main())
 ```
@@ -258,11 +276,7 @@ asyncio.run(main())
 - `browser_close(tab_id)` - 关闭标签页
 - `browser_navigate(url)` - 导航到 URL
 - `browser_tabs()` - 获取标签页列表
-- `browser_snapshot(mode, ...)` - 获取页面快照
-- `browser_screenshot()` - 获取截图
-- `browser_act(ref, action, ...)` - 执行 UI 操作
 - `browser_evaluate(javascript)` - 执行 JavaScript ⚠️
-- `browser_console()` - 获取控制台日志
 - `browser_profiles()` - 获取配置列表
 - `browser_create_profile(name)` - 创建配置
 - `browser_delete_profile(name)` - 删除配置
@@ -272,8 +286,7 @@ asyncio.run(main())
 1. **JavaScript 使用**：始终使用简单的表达式，避免变量声明和 return 语句
 2. **错误处理**：使用 try-except 捕获异常
 3. **等待时间**：在页面操作后添加适当的等待时间
-4. **快照保存**：保存快照用于调试和分析
-5. **资源清理**：使用 async with 语句确保资源正确释放
+4. **资源清理**：使用 async with 语句确保资源正确释放
 
 ## 注意事项
 

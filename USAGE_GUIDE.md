@@ -22,44 +22,64 @@ openclaw gateway --port 18789 --verbose
 现在运行我们的示例脚本：
 
 ```bash
-python demo_open_snapshot.py
+# 快速开始示例
+python examples/getting_started.py
+
+# 综合示例
+python examples/example_usage.py
 ```
 
 ## 预期输出
 
+### 快速开始示例
+
 ```
-打开网页并获取 snapshot 示例
+OpenClaw Browser 入门示例
+==================================================
+
+1. 启动浏览器...
+   ✓ 浏览器已启动
+
+2. 打开网页...
+   ✓ 已打开 https://example.com
+
+3. 获取标签页列表...
+   ✓ 标签页数量: 1
+     1. Example Domain - https://example.com/
+
+4. 导航到新 URL...
+   ✓ 已导航到 https://www.python.org
+
+5. 再次获取标签页列表...
+   ✓ 标签页数量: 1
+     1. Welcome to Python.org - https://www.python.org/
+
+==================================================
+✓ 示例运行完成！
+==================================================
+```
+
+### 综合示例
+
+```
+OpenClaw Browser 工具 Python 客户端示例
+============================================================
+
+示例 1: 基本使用
 ============================================================
 
 1. 检查浏览器状态...
-   状态: {'enabled': True, 'profile': 'chrome', 'running': True, 'cdpReady': True, ...}
+   状态: {'enabled': True, 'profile': 'chrome', 'running': True, ...}
 
 2. 启动浏览器...
-   ✓ 浏览器已启动
+   浏览器已启动
 
 3. 打开网页...
-   ✓ 已打开 https://example.com
+   已打开 https://example.com
 
-4. 等待页面加载...
-
-5. 获取页面 snapshot...
-   ✓ 快照获取成功
-   页面标题: Example Domain...
-   可交互元素数量: 10
-
-6. 保存 snapshot 到文件...
-   ✓ snapshot 已保存到 snapshot.json
-
-7. 截图...
-   ✓ 截图成功: {"data": "data:image/png;base64,..."}
-
-8. 停止浏览器...
-   ✓ 浏览器已停止
-
-============================================================
-✓ 操作完成！
-✓ 网页已打开，snapshot 已保存
-============================================================
+4. 获取标签页列表...
+   标签页数量: 1
+     1. Example Domain - https://example.com/
 ```
 
 ## 故障排除
@@ -89,63 +109,91 @@ from openclaw_browser_client import OpenClawBrowserClient
 
 async def simple_open():
     async with OpenClawBrowserClient() as client:
+        # 启动浏览器
         await client.browser_start()
-        await client.browser_open("https://google.com")
-        await asyncio.sleep(5)  # 等待 5 秒
-        await client.browser_stop()
+        
+        # 打开网页
+        await client.browser_open("https://example.com")
+        
+        # 等待页面加载
+        await asyncio.sleep(2)
+        
+        # 获取标签页列表
+        tabs = await client.browser_tabs()
+        for tab in tabs:
+            print(f"{tab.title} - {tab.url}")
 
 asyncio.run(simple_open())
 ```
 
-### 示例 2: 搜索操作
+### 示例 2: 标签页管理
 
 ```python
 import asyncio
 from openclaw_browser_client import OpenClawBrowserClient
 
-async def search_example():
+async def tab_management():
     async with OpenClawBrowserClient() as client:
-        await client.browser_start()
-        await client.browser_open("https://google.com")
-        await asyncio.sleep(2)
+        # 打开多个标签页
+        await client.browser_open("https://example.com")
+        await client.browser_open("https://www.python.org")
+        await client.browser_open("https://github.com")
         
-        # 获取快照
-        snapshot = await client.browser_snapshot(mode="ai")
+        # 列出所有标签页
+        tabs = await client.browser_tabs()
+        for i, tab in enumerate(tabs, 1):
+            print(f"{i}. {tab.title} - {tab.url}")
         
-        # 查找搜索框
-        search_ref = None
-        for ref, element in snapshot.refs.items():
-            if "search" in str(element).lower():
-                search_ref = ref
-                break
+        # 导航到新 URL
+        if tabs:
+            await client.browser_navigate("https://httpbin.org")
+            await asyncio.sleep(2)
         
-        if search_ref:
-            # 输入搜索内容
-            await client.browser_act(search_ref, "click")
-            await asyncio.sleep(0.5)
-            await client.browser_act(search_ref, "type", value="OpenClaw AI")
-            await asyncio.sleep(1)
-            await client.browser_act(search_ref, "press", value="Enter")
-            await asyncio.sleep(3)
-        
-        await client.browser_stop()
+        # 关闭最后一个标签页
+        tabs = await client.browser_tabs()
+        if tabs and tabs[-1].id:
+            await client.browser_close(tabs[-1].id)
 
-asyncio.run(search_example())
+asyncio.run(tab_management())
+```
+
+### 示例 3: 配置管理
+
+```python
+import asyncio
+from openclaw_browser_client import OpenClawBrowserClient
+
+async def profile_management():
+    async with OpenClawBrowserClient() as client:
+        # 列出所有配置
+        profiles = await client.browser_profiles()
+        print(f"配置列表: {profiles}")
+        
+        # 创建新配置
+        try:
+            result = await client.browser_create_profile("my-profile")
+            print(f"创建结果: {result}")
+        except Exception as e:
+            print(f"创建配置失败（可能已存在）: {e}")
+
+asyncio.run(profile_management())
 ```
 
 ## 查看结果
 
 运行脚本后，你可以：
 
-1. **查看 snapshot.json 文件** - 包含页面的详细信息
-2. **查看截图** - 浏览器会保存截图数据
-3. **检查浏览器** - 看看实际打开的页面
+1. **检查浏览器** - 看看实际打开的页面
+2. **查看标签页列表** - 了解当前打开的所有标签页
+3. **检查配置列表** - 了解可用的浏览器配置
 
 ## 后续步骤
 
-- 尝试其他浏览器操作（如 `browser_act` 执行点击、输入等）
-- 探索 `browser_evaluate` 执行 JavaScript 代码
-- 查看 `example_usage.py` 中的更多示例
+- 查看 `example_usage.py` 了解更多示例
+- 查看 `getting_started.py` 了解快速开始
+- 使用 `openclaw_browser_cli.py` 进行命令行操作
+- 阅读 `README.md` 了解完整文档
+- 阅读 `skill.md` 了解 JavaScript 执行功能
 
 ---
 

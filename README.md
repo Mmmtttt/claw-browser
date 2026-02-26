@@ -10,16 +10,19 @@ from openclaw_browser_client import OpenClawBrowserClient
 
 async def main():
     async with OpenClawBrowserClient() as client:
+        # 启动浏览器
+        await client.browser_start()
+        
         # 打开网页
         await client.browser_open("https://example.com")
         
-        # 获取页面快照
-        snapshot = await client.browser_snapshot(mode="ai")
-        print(f"页面内容: {snapshot.content}")
+        # 等待页面加载
+        await asyncio.sleep(2)
         
-        # 执行 JavaScript
-        result = await client.browser_evaluate("document.title")
-        print(f"标题: {result.get('result', '')}")
+        # 获取标签页列表
+        tabs = await client.browser_tabs()
+        for i, tab in enumerate(tabs, 1):
+            print(f"{i}. {tab.title} - {tab.url}")
 
 asyncio.run(main())
 ```
@@ -32,13 +35,9 @@ pip install -r requirements.txt
 
 ## 核心功能
 
-- 🌐 浏览器控制（启动、停止、导航）
-- 📸 页面快照（AI 模式、ARIA 模式）
-- 🖼️ 截图功能
-- 🎯 UI 操作（点击、输入、按键）
-- 💻 JavaScript 执行
-- ⚙️ 配置管理
-- 🤖 自动化辅助
+- 🌐 浏览器控制（启动、停止、状态查询）
+- 📑 标签页管理（打开、关闭、导航）
+- ⚙️ 配置管理（列出、创建配置）
 
 ## 重要提示
 
@@ -94,32 +93,36 @@ claw-browser-python-client/
 
 ## 使用场景
 
-### 网页数据抓取
+### 标签页管理
 ```python
 async with OpenClawBrowserClient() as client:
+    # 打开多个标签页
     await client.browser_open("https://example.com")
-    snapshot = await client.browser_snapshot(mode="ai")
-    # 从快照中提取数据
+    await client.browser_open("https://www.python.org")
+    
+    # 列出所有标签页
+    tabs = await client.browser_tabs()
+    for tab in tabs:
+        print(f"{tab.title} - {tab.url}")
+    
+    # 导航到新 URL
+    await client.browser_navigate("https://github.com")
+    
+    # 关闭标签页
+    if tabs and tabs[-1].id:
+        await client.browser_close(tabs[-1].id)
 ```
 
-### 表单自动填写
+### 配置管理
 ```python
 async with OpenClawBrowserClient() as client:
-    await client.browser_open("https://example.com/form")
-    snapshot = await client.browser_snapshot(mode="ai")
-    for ref, element in snapshot.refs.items():
-        if element.get('role') == 'textbox':
-            await client.browser_act(ref, "type", value="test data")
-```
-
-### 页面监控
-```python
-async with OpenClawBrowserClient() as client:
-    await client.browser_open("https://example.com")
-    while True:
-        snapshot = await client.browser_snapshot(mode="ai")
-        # 检查页面变化
-        await asyncio.sleep(10)
+    # 列出所有配置
+    profiles = await client.browser_profiles()
+    print(f"配置列表: {profiles}")
+    
+    # 创建新配置
+    result = await client.browser_create_profile("my-profile")
+    print(f"创建结果: {result}")
 ```
 
 ## 注意事项

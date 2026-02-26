@@ -33,8 +33,7 @@ env/
 *~
 
 # Logs
-logs/
-*.log
+logs/*
 
 # Test results
 test_results.json
